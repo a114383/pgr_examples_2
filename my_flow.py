@@ -1,13 +1,18 @@
+import os
+
+import prefect
 from prefect import task, Flow
-from prefect.environments.storage import GitHub
+from prefect.storage import GitHub
 from prefect.run_configs import DockerRun
-from prefect.engine.executors.dask import LocalDaskExecutor
+from prefect.executors import LocalDaskExecutor
 
 
 @task
 def extract():
     """Get a list of data"""
-    return [i for i in range(1, 100)]
+    logger = prefect.context.get("logger")
+    logger.info("We're in Prod")
+    return [i for i in range(1, 10)]
 
 
 @task
@@ -26,13 +31,25 @@ def load(data):
 with Flow(
     "ETL",
     storage=GitHub(
-        repo="<my_github_org/repo_name>",
-        path="src/flow.py",
-        secrets=["<GITHUB_ACCESS_TOKEN>"],
+        repo="dylanbhughes/pgr_examples_2",
+        path="my_flow.py",
+        secrets=["GITHUB_ACCESS_TOKEN"],
+        ref=os.environ["PREFECT_FLOW_BRANCH_NAME"],
     ),
-    run_config=DockerRun(image="prefecthq/prefect:all_extras"),
+    run_config=DockerRun(
+        image="prefecthq/prefect:latest",
+        labels=[os.environ["PREFECT_FLOW_LABEL"]],
+        env={
+            "PREFECT_FLOW_BRANCH_NAME": os.environ["PREFECT_FLOW_BRANCH_NAME"],
+            "PREFECT_FLOW_LABEL": os.environ["PREFECT_FLOW_LABEL"],
+            "PREFECT_PROJECT_NAME": os.environ["PREFECT_PROJECT_NAME"],
+        },
+    ),
     executor=LocalDaskExecutor(scheduler="threads", num_workers=3),
 ) as flow:
     e = extract()
     t = transform.map(e)
     l = load(t)
+
+if __name__ == "__main__":
+    flow.register(os.environ["PREFECT_PROJECT_NAME"])
