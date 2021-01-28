@@ -11,7 +11,7 @@ from prefect.executors import LocalDaskExecutor
 def extract():
     """Get a list of data"""
     logger = prefect.context.get("logger")
-    logger.info("We're in Prod")
+    logger.info("We're in Staging")
     return [i for i in range(1, 10)]
 
 
